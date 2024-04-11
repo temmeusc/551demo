@@ -127,11 +127,17 @@ def list_audio():
 def edit_audio(id):
     data = request.json
     try:
-        result = db.audio.update_one({'_id': ObjectId(id)}, {'$set': data})
+        # Check if document exists
+        existing_doc = db.metadata.find_one({'_id': ObjectId(id)})
+        if not existing_doc:
+            return jsonify({'success': False, 'message': 'Document not found'})
+
+        # Attempt to update the document
+        result = db.metadata.update_one({'_id': ObjectId(id)}, {'$set': data})
         if result.modified_count:
             return jsonify({'success': True, 'message': 'Audio edited successfully'})
         else:
-            return jsonify({'success': False, 'message': 'No changes made'})
+            return jsonify({'success': True, 'message': 'No changes made or document already up to date'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
@@ -139,13 +145,30 @@ def edit_audio(id):
 @app.route('/api/audio/delete/<id>', methods=['DELETE'])
 def delete_audio(id):
     try:
-        result = db.audio.delete_one({'_id': ObjectId(id)})
-        if result.deleted_count:
+        # Lookup the metadata document
+        metadata_doc = db.metadata.find_one({'_id': ObjectId(id)})
+        if not metadata_doc:
+            return jsonify({'success': False, 'message': 'Metadata document not found'})
+
+        # Use the collection_tag to select the correct collection
+        collection_name = metadata_doc['collection_tag']
+        audio_collection = db[collection_name]
+
+        # Delete the actual audio document
+        audio_delete_result = audio_collection.delete_one({'_id': metadata_doc['audio_id']})
+        if audio_delete_result.deleted_count == 0:
+            return jsonify({'success': False, 'message': 'Audio document not found in the collection'})
+
+        # Delete the metadata document
+        metadata_delete_result = db.metadata.delete_one({'_id': ObjectId(id)})
+        if metadata_delete_result.deleted_count:
             return jsonify({'success': True, 'message': 'Audio deleted successfully'})
         else:
-            return jsonify({'success': False, 'message': 'Audio not found'})
+            # This else is unlikely to be reached since we already found the document
+            return jsonify({'success': False, 'message': 'Failed to delete metadata document'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
 
 if __name__ == '__main__':
     # Create the uploads directory if it does not exist
