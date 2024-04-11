@@ -1,0 +1,12 @@
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+PS C:\Users\jtemme> $env:PATH += ";c:\users\jtemme\appdata\local\packages\pythonsoftwarefoundation.python.3.10_qbz5n2kfra8p0\localcache\local-packages\Python310\Scripts"
+PS C:\Users\jtemme> streamlit run "C:\Users\jtemme\OneDrive\Jake\USC\DSCI 551\streamlit_app.py"
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8501
+  Network URL: http://192.168.138.230:8501
