@@ -22,6 +22,13 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+# Hash function
+def hash_function(artist_name, track_name):
+    artist_initial = artist_name[0].upper()  # Get the first character and uppercase
+    track_initial = track_name[0].upper()  # Get the first character and uppercase
+    total = ord(artist_initial) + ord(track_initial)  # Sum of ASCII values
+    return total % 2  # Return remainder of division by 2 (either 0 or 1)
+
 # Function to convert ObjectId to string
 def jsonify_mongo(data):
     for document in data:
@@ -35,8 +42,8 @@ def upload_audio():
     if 'uploaded_file' not in request.files:
         return jsonify({'success': False, 'message': 'No file part'})
     file = request.files['uploaded_file']
-    artist_name = request.form['artistName']
-    track_name = request.form['trackName']
+    artist_name = request.form.get('artistName', '')
+    track_name = request.form.get('trackName', '')
     if file.filename == '':
         return jsonify({'success': False, 'message': 'No selected file'})
     if file and allowed_file(file.filename):
@@ -44,10 +51,11 @@ def upload_audio():
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
         data = {'artistName': artist_name, 'trackName': track_name, 'filePath': file_path}
+        hash_value = hash_function(artist_name, track_name)  # Calculate hash
+        collection_name = f"audio_{hash_value}"  # Determine collection name based on hash
         try:
-            result = db.audio.insert_one(data)
-            # Convert ObjectId to string
-            data['_id'] = str(result.inserted_id)
+            result = db[collection_name].insert_one(data)  # Insert into calculated collection
+            data['_id'] = str(result.inserted_id)  # Convert ObjectId to string
             return jsonify({'success': True, 'message': 'Audio uploaded successfully', 'data': data})
         except Exception as e:
             return jsonify({'success': False, 'message': str(e)})
