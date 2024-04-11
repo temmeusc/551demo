@@ -38,7 +38,11 @@ uploaded_file = st.file_uploader('Choose a file', type=['mp3', 'wav', 'mpeg'], k
 if st.button('Upload Audio File', key='upload'):
     if uploaded_file is not None:
         result = upload_audio_file(artist_name, track_name, uploaded_file)
-        st.write(result)
+        if result['success']:
+            st.success('File uploaded successfully.')
+            st.audio(result['data']['fileUrl'])  # Playback the uploaded file
+        else:
+            st.error(result['message'])
     else:
         st.error('Please select a file to upload.')
 
@@ -50,7 +54,10 @@ if list_button:
     audio_files = fetch_audio_files(page_number)
     if audio_files['success']:
         for audio in audio_files['data']:
-            st.write(f"ID: {audio['_id']}, Artist: {audio['artistName']}, Track: {audio['trackName']}, Path: {audio['filePath']}")
+            st.write(f"ID: {audio['_id']}, Artist: {audio['artistName']}, Track: {audio['trackName']}")
+            # Add an audio player for each file
+            if 'fileUrl' in audio:
+                st.audio(audio['fileUrl'], format='audio/mp3')
     else:
         st.error('Failed to fetch audio files.')
 
