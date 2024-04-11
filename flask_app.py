@@ -52,9 +52,10 @@ def upload_audio():
         file.save(file_path)
         data = {'artistName': artist_name, 'trackName': track_name, 'filePath': file_path}
         hash_value = hash_function(artist_name, track_name)  # Calculate hash
-        collection_name = f"audio_{hash_value}"  # Determine collection name based on hash
+        collection_tag = f"audio_{hash_value}"  # Determine collection tag based on hash
+        data = {'artistName': artist_name, 'trackName': track_name, 'filePath': file_path, 'collection_tag': collection_tag}
         try:
-            result = db[collection_name].insert_one(data)  # Insert into calculated collection
+            result = db.audio.insert_one(data)  # Insert into a single 'audio' collection with a tag
             data['_id'] = str(result.inserted_id)  # Convert ObjectId to string
             return jsonify({'success': True, 'message': 'Audio uploaded successfully', 'data': data})
         except Exception as e:
@@ -68,12 +69,14 @@ def list_audio():
     limit = 10  # Adjust as needed
     skip = (page - 1) * limit
     try:
-        audio_data = list(db.audio.find({}, {'_id': 1, 'artistName': 1, 'trackName': 1, 'filePath': 1}).skip(skip).limit(limit))
+        # Query the single 'audio' collection without needing to specify a tag
+        audio_data = list(db.audio.find({}, {'_id': 1, 'artistName': 1, 'trackName': 1, 'filePath': 1, 'collection_tag': 1}).skip(skip).limit(limit))
         for audio in audio_data:
             audio['_id'] = str(audio['_id'])  # Convert ObjectId to string for JSON serialization
         return jsonify({'success': True, 'data': audio_data})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
 
 # API endpoint for editing audio file metadata
 @app.route('/api/audio/edit/<id>', methods=['PUT'])
