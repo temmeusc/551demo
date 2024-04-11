@@ -50,14 +50,28 @@ if st.button('Upload Audio File', key='upload'):
 st.subheader('List Audio Files')
 page_number = st.number_input('Page Number', min_value=1, value=1, step=1, key='list_page')
 list_button = st.button('Fetch List', key='list')
+
 if list_button:
     audio_files = fetch_audio_files(page_number)
     if audio_files['success']:
         for audio in audio_files['data']:
-            st.write(f"ID: {audio['_id']}, Artist: {audio['artistName']}, Track: {audio['trackName']}")
-            # Add an audio player for each file
-            if 'fileUrl' in audio:
-                st.audio(audio['fileUrl'], format='audio/mp3')
+            col1, col2, col3 = st.columns([3,1,1])
+            with col1:
+                st.text(f"ID: {audio['_id']}\nArtist: {audio['artistName']}\nTrack: {audio['trackName']}")
+                if 'fileUrl' in audio:
+                    st.audio(audio['fileUrl'], format='audio/mp3')
+            with col2:
+                if st.button('Edit', key=f"edit_{audio['_id']}"):
+                    # Implement the functionality to navigate to the editing UI
+                    pass
+            with col3:
+                if st.button('Delete', key=f"delete_{audio['_id']}"):
+                    delete_result = delete_audio_file(audio['_id'])
+                    if delete_result['success']:
+                        st.success('File deleted successfully.')
+                        # Optionally, implement a refresh mechanism here
+                    else:
+                        st.error('Error deleting file.')
     else:
         st.error('Failed to fetch audio files.')
 
