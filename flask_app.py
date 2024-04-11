@@ -4,6 +4,7 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from bson import ObjectId
+from flask import send_from_directory
 import os
 
 app = Flask(__name__)
@@ -17,6 +18,11 @@ db = client["MusicalChairs"]
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'mp3', 'wav', 'mpeg'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Function to serve Audio files through Flask
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 # Function to check if the file extension is allowed
 def allowed_file(filename):
@@ -50,17 +56,30 @@ def upload_audio():
         filename = secure_filename(file.filename)
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
-        data = {'artistName': artist_name, 'trackName': track_name, 'filePath': file_path}
-        hash_value = hash_function(artist_name, track_name)  # Calculate hash
-        collection_tag = f"audio_{hash_value}"  # Determine collection tag based on hash
-        data = {'artistName': artist_name, 'trackName': track_name, 'filePath': file_path, 'collection_tag': collection_tag}
+        
+        # Calculate hash value to determine collection tag
+        hash_value = hash_function(artist_name, track_name)
+        collection_tag = f"audio_{hash_value}"
+        
+        # Construct an absolute URL for the file
+        file_url = request.url_root + 'uploads/' + filename
+        
+        # Insert into a single 'audio' collection with a tag, including file URL
+        data = {
+            'artistName': artist_name, 
+            'trackName': track_name, 
+            'filePath': file_path, 
+            'collection_tag': collection_tag,
+            'fileUrl': file_url  # Adding file URL
+        }
         try:
-            result = db.audio.insert_one(data)  # Insert into a single 'audio' collection with a tag
+            result = db[collection_tag].insert_one(data)  # Use collection tag in db selection
             data['_id'] = str(result.inserted_id)  # Convert ObjectId to string
             return jsonify({'success': True, 'message': 'Audio uploaded successfully', 'data': data})
         except Exception as e:
             return jsonify({'success': False, 'message': str(e)})
     return jsonify({'success': False, 'message': 'Invalid file type'})
+
 
 # API endpoint for listing audio files
 @app.route('/api/audio/list', methods=['GET'])
