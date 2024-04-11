@@ -6,6 +6,7 @@ from bson.objectid import ObjectId
 from bson import ObjectId
 from flask import send_from_directory
 import os
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS
@@ -53,8 +54,11 @@ def upload_audio():
     if file.filename == '':
         return jsonify({'success': False, 'message': 'No selected file'})
     if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")  # Current timestamp
+        original_filename = secure_filename(file.filename)
+        filename, file_extension = os.path.splitext(original_filename)
+        unique_filename = f"{filename}_{timestamp}{file_extension}"  # Appending timestamp to filename
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         file.save(file_path)
         
         # Calculate hash value to determine collection tag
@@ -62,23 +66,43 @@ def upload_audio():
         collection_tag = f"audio_{hash_value}"
         
         # Construct an absolute URL for the file
-        file_url = request.url_root + 'uploads/' + filename
+        file_url = request.url_root + 'uploads/' + unique_filename
         
-        # Insert into a single 'audio' collection with a tag, including file URL
-        data = {
+        # Insert into a specific 'audio' collection based on hash, including file URL
+        audio_data = {
             'artistName': artist_name, 
             'trackName': track_name, 
             'filePath': file_path, 
-            'collection_tag': collection_tag,
-            'fileUrl': file_url  # Adding file URL
+            'fileUrl': file_url,  # Adding file URL
+            'collection_tag': collection_tag
         }
         try:
-            result = db[collection_tag].insert_one(data)  # Use collection tag in db selection
-            data['_id'] = str(result.inserted_id)  # Convert ObjectId to string
-            return jsonify({'success': True, 'message': 'Audio uploaded successfully', 'data': data})
+            # Insert the audio data into the hashed collection
+            result = db[collection_tag].insert_one(audio_data)
+            
+            # Insert reference into metadata collection for easy retrieval
+            metadata_entry = {
+                'artistName': artist_name,
+                'trackName': track_name,
+                'fileUrl': file_url,  # Store the accessible URL
+                'collection_tag': collection_tag,  # Reference to the specific collection
+                'audio_id': result.inserted_id  # Reference to the specific document ID in the hashed collection
+            }
+            db.metadata.insert_one(metadata_entry)
+            
+            # Prepare response data
+            response_data = {
+                '_id': str(result.inserted_id),  # Convert ObjectId to string
+                'artistName': artist_name, 
+                'trackName': track_name, 
+                'filePath': file_path, 
+                'fileUrl': file_url
+            }
+            return jsonify({'success': True, 'message': 'Audio uploaded successfully', 'data': response_data})
         except Exception as e:
             return jsonify({'success': False, 'message': str(e)})
     return jsonify({'success': False, 'message': 'Invalid file type'})
+
 
 
 # API endpoint for listing audio files
@@ -87,12 +111,13 @@ def list_audio():
     page = int(request.args.get('page', 1))
     limit = 10  # Adjust as needed
     skip = (page - 1) * limit
+
     try:
-        # Query the single 'audio' collection without needing to specify a tag
-        audio_data = list(db.audio.find({}, {'_id': 1, 'artistName': 1, 'trackName': 1, 'filePath': 1, 'collection_tag': 1}).skip(skip).limit(limit))
-        for audio in audio_data:
+        # Assuming 'metadata' is your unified collection for storing references to all files.
+        audio_metadata = list(db.metadata.find({}, {'_id': 1, 'artistName': 1, 'trackName': 1, 'filePath': 1, 'fileUrl': 1, 'collection_tag': 1}).skip(skip).limit(limit))
+        for audio in audio_metadata:
             audio['_id'] = str(audio['_id'])  # Convert ObjectId to string for JSON serialization
-        return jsonify({'success': True, 'data': audio_data})
+        return jsonify({'success': True, 'data': audio_metadata})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
